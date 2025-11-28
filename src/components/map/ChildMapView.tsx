@@ -51,6 +51,7 @@ export const ChildMapView = ({ latest, history }: Props) => {
         type: "geojson",
         data: {
           type: "Feature",
+          properties: {},
           geometry: {
             type: "LineString",
             coordinates,
