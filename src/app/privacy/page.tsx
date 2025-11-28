@@ -5,7 +5,7 @@ import { Card, CardContent } from "../../components/ui/card";
 import { PageHeader } from "../../components/ui/page-header";
 
 const PrivacyPage = () => {
-  const policyPath = path.resolve(process.cwd(), "../docs/privacy-policy.md");
+  const policyPath = path.resolve(process.cwd(), "docs/privacy-policy.md");
   const markdown = fs.readFileSync(policyPath, "utf-8");
 
   return (
@@ -27,5 +27,3 @@ const PrivacyPage = () => {
 };
 
 export default PrivacyPage;
-
-
