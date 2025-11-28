@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-surface text-slate-900 antialiased;
+  background-image: radial-gradient(circle at 10% 20%, rgba(64, 179, 182, 0.15), transparent 50%),
+    radial-gradient(circle at 90% 10%, rgba(124, 131, 255, 0.12), transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(255, 255, 255, 0.6), transparent 50%);
+  min-height: 100vh;
+}
+
+a {
+  @apply text-brand hover:text-brand-dark transition-colors;
+}
+
+.safehome-auth-bg {
+  background: radial-gradient(circle at top, rgba(31, 124, 128, 0.25), transparent 60%),
+    linear-gradient(135deg, #f7fbfc 0%, #eef5ff 100%);
+}
+
+.glass-panel {
+  @apply bg-white/80 backdrop-blur-lg shadow-soft;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  @apply w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30;
+}
+
+.safehome-card {
+  @apply rounded-2xl border border-white/40 bg-white shadow-soft;
+}
+
+.pulse-dot {
+  position: relative;
+}
+
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  animation: pulse-soft 2s infinite;
+}
+
+::selection {
+  @apply bg-brand/20 text-slate-900;
+}
