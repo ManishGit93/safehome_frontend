@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
@@ -58,6 +58,25 @@ const ChildDetailPage = () => {
   );
 
   const { connected } = useRealtimeLocation(childId ?? null, handleRealtime);
+
+  // Debug logging to help diagnose issues
+  useEffect(() => {
+    if (data) {
+      console.log("[ChildDetailPage] Location data received:", {
+        pingsCount: data.pings.length,
+        queryKey,
+        selectedChild: {
+          id: selectedChild?.id,
+          name: selectedChild?.name,
+          consentGiven: selectedChild?.consentGiven,
+        },
+        connected,
+      });
+    }
+    if (error) {
+      console.error("[ChildDetailPage] Error fetching location data:", error);
+    }
+  }, [data, error, queryKey, selectedChild, connected]);
 
   const path = useMemo(() => data?.pings ?? [], [data?.pings]);
 
@@ -137,7 +156,50 @@ const ChildDetailPage = () => {
 
       {isLoading && <p className="text-sm text-slate-500">Loading track…</p>}
 
-      {data && (
+      {/* Show diagnostic information when no data */}
+      {!isLoading && data && data.pings.length === 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-amber-900">No location data available</h3>
+              <div className="space-y-2 text-sm text-amber-800">
+                <p>This could be because:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>
+                    <strong>Consent not given:</strong> The child needs to grant consent in their dashboard
+                    {!selectedChild?.consentGiven && (
+                      <span className="ml-1 text-amber-600">(Currently: Consent pending)</span>
+                    )}
+                  </li>
+                  <li>
+                    <strong>No location sent:</strong> The child's device/app hasn't sent any location updates yet
+                  </li>
+                  <li>
+                    <strong>Time range:</strong> No location data exists in the selected time range ({hours}h)
+                  </li>
+                  <li>
+                    <strong>Link status:</strong> Ensure the parent-child link is active and approved
+                  </li>
+                </ul>
+                <div className="mt-4 p-3 bg-white rounded-lg border border-amber-200">
+                  <p className="font-medium text-amber-900 mb-1">Debug Info:</p>
+                  <p className="text-xs text-amber-700 font-mono">
+                    API: {queryKey}
+                  </p>
+                  <p className="text-xs text-amber-700 font-mono">
+                    Response: {JSON.stringify(data)}
+                  </p>
+                  <p className="text-xs text-amber-700 font-mono">
+                    Socket.IO: {connected ? "Connected" : "Disconnected"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {data && data.pings.length > 0 && (
         <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <Card>
@@ -230,6 +292,33 @@ const ChildDetailPage = () => {
               </CardContent>
             </Card>
           </motion.div>
+        </div>
+      )}
+
+      {/* Show map even when no data, so parent can see the empty state */}
+      {!isLoading && data && data.pings.length === 0 && (
+        <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CardTitle>Live Location</CardTitle>
+                <Badge variant={connected ? "success" : "warning"} className="flex items-center gap-1.5">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-slate-400"}`}
+                  />
+                  {connected ? "Live" : "Offline"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ChildLocationMap
+                currentLocation={mapCurrentLocation}
+                history={mapHistory}
+                height="450px"
+                connected={connected}
+              />
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
