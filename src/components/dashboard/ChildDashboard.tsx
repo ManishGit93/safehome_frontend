@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDownTrayIcon, CheckBadgeIcon, EnvelopeOpenIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, CheckBadgeIcon, EnvelopeOpenIcon, MapPinIcon } from "@heroicons/react/24/outline";
+import { useState } from "react";
 import useSWR from "swr";
 import { apiFetch, swrFetcher } from "../../lib/apiClient";
 import { useAuth } from "../../hooks/useAuth";
@@ -21,6 +22,9 @@ export const ChildDashboard = () => {
   const { user } = useAuth();
   const acceptedQuery = useSWR<LinkResponse>("/links/child", swrFetcher);
   const pendingQuery = useSWR<LinkResponse>("/links/pending", swrFetcher);
+  const [sendingLocation, setSendingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [lastSentLocation, setLastSentLocation] = useState<{ lat: number; lng: number; time: string } | null>(null);
 
   const respondToLink = async (endpoint: "/links/accept" | "/links/decline", linkId: string) => {
     await apiFetch(endpoint, { method: "POST", body: { linkId } });
@@ -36,6 +40,100 @@ export const ChildDashboard = () => {
     anchor.download = "safehome-export.json";
     anchor.click();
     URL.revokeObjectURL(url);
+  };
+
+  /**
+   * Send current location to backend
+   * This is a testing/debugging feature - in production, location should come from mobile app
+   */
+  const handleSendLocation = async () => {
+    if (!user?.consentGiven) {
+      setLocationError("Please grant consent first to share your location");
+      return;
+    }
+
+    setSendingLocation(true);
+    setLocationError(null);
+
+    try {
+      // Get current location from browser
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error("Geolocation is not supported by your browser"));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          (error) => {
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                reject(new Error("Location permission denied. Please enable location access in your browser settings."));
+                break;
+              case error.POSITION_UNAVAILABLE:
+                reject(new Error("Location information is unavailable."));
+                break;
+              case error.TIMEOUT:
+                reject(new Error("Location request timed out."));
+                break;
+              default:
+                reject(new Error("An unknown error occurred while getting location."));
+            }
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      });
+
+      const { latitude, longitude, accuracy } = position.coords;
+
+      // Send location to backend
+      // Try common endpoint patterns - adjust if your backend uses a different endpoint
+      try {
+        await apiFetch("/me/location", {
+          method: "POST",
+          body: {
+            lat: latitude,
+            lng: longitude,
+            accuracy: accuracy || undefined,
+            ts: new Date().toISOString(),
+          },
+        });
+
+        setLastSentLocation({
+          lat: latitude,
+          lng: longitude,
+          time: new Date().toLocaleString(),
+        });
+      } catch (apiError: any) {
+        // If /me/location doesn't work, try /location
+        try {
+          await apiFetch("/location", {
+            method: "POST",
+            body: {
+              lat: latitude,
+              lng: longitude,
+              accuracy: accuracy || undefined,
+              ts: new Date().toISOString(),
+            },
+          });
+
+          setLastSentLocation({
+            lat: latitude,
+            lng: longitude,
+            time: new Date().toLocaleString(),
+          });
+        } catch (secondError: any) {
+          throw new Error(
+            `Failed to send location to backend. Tried /me/location and /location. Error: ${apiError.message || secondError.message}`
+          );
+        }
+      }
+    } catch (error: any) {
+      console.error("Error sending location:", error);
+      setLocationError(error.message || "Failed to send location");
+    } finally {
+      setSendingLocation(false);
+    }
   };
 
   return (
@@ -70,6 +168,60 @@ export const ChildDashboard = () => {
           </div>
         </CardHeader>
       </Card>
+
+      {/* Location Testing Card - for debugging/testing */}
+      {user?.consentGiven && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <MapPinIcon className="h-5 w-5 text-blue-600" />
+              <div>
+                <CardTitle className="text-blue-900">Send Test Location</CardTitle>
+                <CardDescription className="text-blue-700">
+                  For testing: Send your current browser location to the backend. In production, location comes from the mobile app.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button
+              variant="primary"
+              onClick={handleSendLocation}
+              disabled={sendingLocation}
+              icon={<MapPinIcon className="h-4 w-4" />}
+            >
+              {sendingLocation ? "Sending location..." : "Send My Current Location"}
+            </Button>
+
+            {locationError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-medium text-red-900">Error</p>
+                <p className="text-sm text-red-700">{locationError}</p>
+              </div>
+            )}
+
+            {lastSentLocation && !locationError && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <p className="text-sm font-medium text-green-900">✓ Location sent successfully</p>
+                <p className="text-xs text-green-700 mt-1">
+                  Lat: {lastSentLocation.lat.toFixed(6)}, Lng: {lastSentLocation.lng.toFixed(6)}
+                </p>
+                <p className="text-xs text-green-700">Sent at: {lastSentLocation.time}</p>
+                <p className="text-xs text-green-600 mt-2">
+                  Parents should see this location on their dashboard within a few seconds.
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-lg border border-blue-200 bg-white p-3">
+              <p className="text-xs text-blue-800">
+                <strong>Note:</strong> This uses your browser's location. Make sure location permissions are enabled.
+                The parent dashboard will update automatically when location is received.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
