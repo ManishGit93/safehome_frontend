@@ -4,9 +4,9 @@ import { BoltIcon, WifiIcon } from "@heroicons/react/24/outline";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
-import { ChildMapView } from "../../../components/map/ChildMapView";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
@@ -14,6 +14,13 @@ import { useRealtimeLocation } from "../../../hooks/useRealtimeLocation";
 import { useAuth } from "../../../hooks/useAuth";
 import { swrFetcher } from "../../../lib/apiClient";
 import { LinkedChild, LocationPing } from "../../../types/api";
+import type { LocationPoint } from "../../../components/map/ChildLocationMap";
+
+// Dynamically import the map component to avoid SSR issues (Leaflet requires window object)
+const ChildLocationMap = dynamic(
+  () => import("../../../components/map/ChildLocationMap"),
+  { ssr: false }
+);
 
 interface HistoryResponse {
   pings: LocationPing[];
@@ -53,6 +60,29 @@ const ChildDetailPage = () => {
   const { connected } = useRealtimeLocation(childId ?? null, handleRealtime);
 
   const path = useMemo(() => data?.pings ?? [], [data?.pings]);
+
+  // Transform LocationPing[] to LocationPoint[] for the map component
+  // If your backend API shape differs, adjust this transformation accordingly
+  const mapHistory: LocationPoint[] = useMemo(() => {
+    return path.map((ping) => ({
+      lat: ping.lat,
+      lng: ping.lng,
+      ts: ping.ts,
+      accuracy: ping.accuracy,
+      speed: ping.speed,
+    }));
+  }, [path]);
+
+  const mapCurrentLocation: LocationPoint | null = useMemo(() => {
+    if (!latest) return null;
+    return {
+      lat: latest.lat,
+      lng: latest.lng,
+      ts: latest.ts,
+      accuracy: latest.accuracy,
+      speed: latest.speed,
+    };
+  }, [latest]);
 
   if (!childId) {
     return <p className="text-sm text-slate-500">Missing child id.</p>;
@@ -110,7 +140,27 @@ const ChildDetailPage = () => {
       {data && (
         <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-            <ChildMapView latest={latest} history={path} />
+            <Card>
+              <CardHeader className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CardTitle>Live Location</CardTitle>
+                  <Badge variant={connected ? "success" : "warning"} className="flex items-center gap-1.5">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-slate-400"}`}
+                    />
+                    {connected ? "Live" : "Offline"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ChildLocationMap
+                  currentLocation={mapCurrentLocation}
+                  history={mapHistory}
+                  height="450px"
+                  connected={connected}
+                />
+              </CardContent>
+            </Card>
           </motion.div>
 
           <motion.div
