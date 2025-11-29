@@ -69,13 +69,47 @@ interface ChildLocationMapProps {
 }
 
 /**
- * Component to automatically recenter the map when currentLocation changes
+ * RecenterOnLocation Component
+ * 
+ * This component uses the useMap hook from react-leaflet to access the map instance
+ * and automatically recenter/zoom the map when the currentLocation changes.
+ * 
+ * Why this exists:
+ * - MapContainer's center/zoom props only set the initial view
+ * - When currentLocation updates (e.g., from Socket.IO), we need to programmatically
+ *   update the map view to follow the new location
+ * - This component runs inside MapContainer and can access the map instance via useMap()
+ * 
+ * IMPORTANT: Leaflet uses [lat, lng] order (not [lng, lat] like some other libraries)
  */
-function MapRecenter({ center, zoom }: { center: [number, number]; zoom: number }) {
+function RecenterOnLocation({ 
+  currentLocation, 
+  history 
+}: { 
+  currentLocation: LocationPoint | null;
+  history: LocationPoint[];
+}) {
   const map = useMap();
+
   useEffect(() => {
-    map.setView(center, zoom);
-  }, [map, center, zoom]);
+    // Determine where to center based on priority:
+    // 1. currentLocation (if exists)
+    // 2. Last point in history (oldest point, if history is sorted newest-first)
+    // 3. Default India location (handled by MapContainer initial props)
+    
+    if (currentLocation) {
+      // Center on current location with street-level zoom
+      // IMPORTANT: Leaflet expects [lat, lng] order
+      map.setView([currentLocation.lat, currentLocation.lng], 16);
+    } else if (history.length > 0) {
+      // Use the last point in history (assuming history is sorted newest-first)
+      // If your backend returns oldest-first, use history[0] instead
+      const lastPoint = history[history.length - 1];
+      map.setView([lastPoint.lat, lastPoint.lng], 16);
+    }
+    // If neither exists, MapContainer will use its initial center/zoom props
+  }, [currentLocation, history, map]);
+
   return null;
 }
 
@@ -94,33 +128,46 @@ export default function ChildLocationMap({
   height = "400px",
   connected = false,
 }: ChildLocationMapProps) {
-  // Calculate center point for the map
+  // Default center for when no location data exists (India)
+  const DEFAULT_CENTER: [number, number] = [20.5937, 78.9629];
+
+  // Calculate initial center point for the map
+  // This is used only for the initial render - RecenterOnLocation handles updates
   const center: [number, number] = useMemo(() => {
     if (currentLocation) {
+      // Priority 1: Use current location
       return [currentLocation.lat, currentLocation.lng];
     }
     if (history.length > 0) {
-      // Use the most recent history point (first in array if sorted newest-first)
-      const latest = history[0];
-      return [latest.lat, latest.lng];
+      // Priority 2: Use the last point in history (oldest point if sorted newest-first)
+      // IMPORTANT: Leaflet uses [lat, lng] order
+      const lastPoint = history[history.length - 1];
+      return [lastPoint.lat, lastPoint.lng];
     }
-    // Default center (India) - adjust if your users are primarily elsewhere
-    return [20.5937, 78.9629];
+    // Priority 3: Default to India
+    return DEFAULT_CENTER;
   }, [currentLocation, history]);
 
-  // Calculate zoom level
+  // Calculate initial zoom level
+  // This is used only for the initial render - RecenterOnLocation handles updates
   const zoom = useMemo(() => {
-    if (currentLocation || history.length > 0) {
-      return 14; // City-level detail
+    if (currentLocation) {
+      return 16; // Street-level zoom for current location
     }
-    return 5; // Country-level for default location
+    if (history.length > 0) {
+      return 16; // Street-level zoom for history points
+    }
+    return 4; // Country-level zoom for default India view
   }, [currentLocation, history.length]);
 
   // Convert history to polyline coordinates
+  // IMPORTANT: Leaflet expects [lat, lng] order for coordinates
   const polylinePositions: [number, number][] = useMemo(() => {
-    // Reverse history if it's sorted newest-first (to show chronological path)
-    const reversed = [...history].reverse();
-    return reversed.map((point) => [point.lat, point.lng] as [number, number]);
+    // If history is sorted newest-first (first item is most recent),
+    // reverse it to show chronological path from oldest to newest
+    // Adjust this logic if your backend returns history in a different order
+    const chronological = [...history].reverse();
+    return chronological.map((point) => [point.lat, point.lng] as [number, number]);
   }, [history]);
 
   // Get current location coordinates for marker
@@ -164,6 +211,7 @@ export default function ChildLocationMap({
         )}
 
         {/* Current location marker */}
+        {/* IMPORTANT: Leaflet Marker position uses [lat, lng] order */}
         {markerPosition && (
           <Marker
             position={markerPosition}
@@ -182,8 +230,9 @@ export default function ChildLocationMap({
           </Marker>
         )}
 
-        {/* Auto-recenter when currentLocation changes */}
-        {markerPosition && <MapRecenter center={markerPosition} zoom={zoom} />}
+        {/* Auto-recenter when currentLocation or history changes */}
+        {/* This component handles all map view updates after initial render */}
+        <RecenterOnLocation currentLocation={currentLocation} history={history} />
       </MapContainer>
 
       {/* Status indicator overlay (optional) */}
