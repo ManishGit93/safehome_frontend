@@ -2,6 +2,9 @@ import { BACKEND_URL, CSRF_COOKIE, CSRF_HEADER } from "./config";
 
 const isBrowser = typeof window !== "undefined";
 
+// Store CSRF token in memory as fallback when cookies don't work (cross-origin)
+let csrfTokenCache: string | null = null;
+
 const readCookie = (name: string) => {
   if (!isBrowser) return undefined;
   return document.cookie
@@ -13,22 +16,45 @@ const readCookie = (name: string) => {
 
 const ensureCsrfToken = async () => {
   if (!isBrowser) return;
-  const token = readCookie(CSRF_COOKIE);
-  if (token) return;
-  await fetch(`${BACKEND_URL}/auth/csrf`, { credentials: "include" });
+
+  // Check if we have a token in cookie or cache
+  const cookieToken = readCookie(CSRF_COOKIE);
+  if (cookieToken || csrfTokenCache) return;
+
+  // Fetch CSRF token
+  const response = await fetch(`${BACKEND_URL}/auth/csrf`, { credentials: "include" });
+
+  // Try to read from cookie first
+  const tokenFromCookie = readCookie(CSRF_COOKIE);
+  if (tokenFromCookie) {
+    csrfTokenCache = tokenFromCookie;
+    return;
+  }
+
+  // If cookie not set (CORS issue), read from response body
+  if (response.ok) {
+    try {
+      const data = await response.json();
+      if (data.csrfToken) {
+        csrfTokenCache = data.csrfToken;
+      }
+    } catch {
+      // Ignore JSON parse errors
+    }
+  }
 };
 
 // Allow plain objects for body, which we'll JSON.stringify
-type ApiBody = 
+type ApiBody =
   | Record<string, any>  // Plain objects - most common case
-  | FormData 
-  | string 
-  | Blob 
-  | ArrayBuffer 
-  | ArrayBufferView 
-  | URLSearchParams 
-  | ReadableStream<Uint8Array> 
-  | null 
+  | FormData
+  | string
+  | Blob
+  | ArrayBuffer
+  | ArrayBufferView
+  | URLSearchParams
+  | ReadableStream<Uint8Array>
+  | null
   | undefined;
 
 // Define ApiOptions without extending RequestInit to avoid type conflicts
@@ -81,7 +107,8 @@ export const apiFetch = async <T>(path: string, options: ApiOptions = {}): Promi
 
   if (csrf && isBrowser) {
     await ensureCsrfToken();
-    const token = readCookie(CSRF_COOKIE);
+    // Try cookie first, then fallback to cache
+    const token = readCookie(CSRF_COOKIE) || csrfTokenCache;
     if (token) {
       init.headers = {
         ...init.headers,
@@ -105,5 +132,3 @@ export const apiFetch = async <T>(path: string, options: ApiOptions = {}): Promi
 };
 
 export const swrFetcher = <T>(path: string) => apiFetch<T>(path, { csrf: false });
-
-
