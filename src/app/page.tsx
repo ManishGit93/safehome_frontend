@@ -12,7 +12,7 @@ export default function Home() {
       <div className="mt-8 grid gap-6 md:grid-cols-3">
         {[
           { title: "Explicit Consent", text: "Children see, approve, and revoke parent access anytime." },
-          { title: "Mapbox Tracking", text: "Parents view live routes plus past 24h movement at a glance." },
+          { title: "Location Tracking", text: "Parents view live routes plus past 24h movement at a glance." },
           { title: "Privacy Toolkit", text: "Export, delete, retention cleanup, and audit logs for accountability." },
         ].map((item) => (
           <div key={item.title} className="rounded-lg border border-slate-200 p-4">
