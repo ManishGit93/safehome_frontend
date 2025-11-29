@@ -86,35 +86,31 @@ export const ChildDashboard = () => {
 
       const { latitude, longitude, accuracy } = position.coords;
 
-      // Send location to backend
-      // Try common endpoint patterns - adjust if your backend uses a different endpoint
-      try {
-        await apiFetch("/me/location", {
-          method: "POST",
-          body: {
-            lat: latitude,
-            lng: longitude,
-            accuracy: accuracy || undefined,
-            ts: new Date().toISOString(),
-          },
-        });
+      const locationData = {
+        lat: latitude,
+        lng: longitude,
+        accuracy: accuracy || undefined,
+        ts: new Date().toISOString(),
+      };
 
-        setLastSentLocation({
-          lat: latitude,
-          lng: longitude,
-          time: new Date().toLocaleString(),
-        });
-      } catch (apiError: any) {
-        // If /me/location doesn't work, try /location
+      // Try common endpoint patterns - adjust based on your backend API
+      const endpointsToTry = [
+        "/api/location",
+        "/api/location/ping",
+        "/api/me/location",
+        "/location/ping",
+        "/location",
+        "/me/location",
+      ];
+
+      let lastError: Error | null = null;
+      let success = false;
+
+      for (const endpoint of endpointsToTry) {
         try {
-          await apiFetch("/location", {
+          await apiFetch(endpoint, {
             method: "POST",
-            body: {
-              lat: latitude,
-              lng: longitude,
-              accuracy: accuracy || undefined,
-              ts: new Date().toISOString(),
-            },
+            body: locationData,
           });
 
           setLastSentLocation({
@@ -122,11 +118,21 @@ export const ChildDashboard = () => {
             lng: longitude,
             time: new Date().toLocaleString(),
           });
-        } catch (secondError: any) {
-          throw new Error(
-            `Failed to send location to backend. Tried /me/location and /location. Error: ${apiError.message || secondError.message}`
-          );
+          success = true;
+          break; // Success! Exit the loop
+        } catch (error: any) {
+          lastError = error;
+          console.log(`Tried ${endpoint}, got error:`, error.message);
+          // Continue to next endpoint
         }
+      }
+
+      if (!success && lastError) {
+        throw new Error(
+          `Failed to send location. Tried endpoints: ${endpointsToTry.join(", ")}. ` +
+            `Last error: ${lastError.message}. ` +
+            `Please check your backend API documentation for the correct location endpoint.`
+        );
       }
     } catch (error: any) {
       console.error("Error sending location:", error);
@@ -195,8 +201,17 @@ export const ChildDashboard = () => {
 
             {locationError && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm font-medium text-red-900">Error</p>
-                <p className="text-sm text-red-700">{locationError}</p>
+                <p className="text-sm font-medium text-red-900 mb-2">Error</p>
+                <p className="text-sm text-red-700 mb-2">{locationError}</p>
+                <div className="mt-2 p-2 bg-red-100 rounded text-xs text-red-800">
+                  <p className="font-medium mb-1">Troubleshooting:</p>
+                  <ul className="list-disc list-inside space-y-1 ml-1">
+                    <li>Check your backend API documentation for the correct location endpoint</li>
+                    <li>Common patterns: <code className="bg-red-200 px-1 rounded">/api/location</code>, <code className="bg-red-200 px-1 rounded">/location/ping</code>, <code className="bg-red-200 px-1 rounded">/api/me/location</code></li>
+                    <li>Ensure the backend has a POST endpoint for receiving location data</li>
+                    <li>Check browser console for detailed error messages</li>
+                  </ul>
+                </div>
               </div>
             )}
 
