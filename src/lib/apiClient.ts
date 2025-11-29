@@ -17,30 +17,33 @@ const readCookie = (name: string) => {
 const ensureCsrfToken = async () => {
   if (!isBrowser) return;
 
-  // Check if we have a token in cookie or cache
-  const cookieToken = readCookie(CSRF_COOKIE);
-  if (cookieToken || csrfTokenCache) return;
-
-  // Fetch CSRF token
+  // Always fetch a fresh CSRF token to ensure it's valid
   const response = await fetch(`${BACKEND_URL}/auth/csrf`, { credentials: "include" });
 
-  // Try to read from cookie first
+  if (!response.ok) {
+    console.error("Failed to fetch CSRF token");
+    return;
+  }
+
+  // Try to read from cookie first (if CORS allows)
   const tokenFromCookie = readCookie(CSRF_COOKIE);
   if (tokenFromCookie) {
     csrfTokenCache = tokenFromCookie;
+    console.log("CSRF token from cookie:", tokenFromCookie.substring(0, 10) + "...");
     return;
   }
 
   // If cookie not set (CORS issue), read from response body
-  if (response.ok) {
-    try {
-      const data = await response.json();
-      if (data.csrfToken) {
-        csrfTokenCache = data.csrfToken;
-      }
-    } catch {
-      // Ignore JSON parse errors
+  try {
+    const data = await response.json();
+    if (data.csrfToken) {
+      csrfTokenCache = data.csrfToken;
+      console.log("CSRF token from response body:", data.csrfToken.substring(0, 10) + "...");
+    } else {
+      console.error("No csrfToken in response:", data);
     }
+  } catch (error) {
+    console.error("Failed to parse CSRF response:", error);
   }
 };
 
@@ -110,10 +113,13 @@ export const apiFetch = async <T>(path: string, options: ApiOptions = {}): Promi
     // Try cookie first, then fallback to cache
     const token = readCookie(CSRF_COOKIE) || csrfTokenCache;
     if (token) {
+      console.log("Sending CSRF token:", token.substring(0, 10) + "...");
       init.headers = {
         ...init.headers,
         [CSRF_HEADER]: token,
       };
+    } else {
+      console.error("No CSRF token available!");
     }
   }
 
