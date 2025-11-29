@@ -24,6 +24,15 @@ const ChildLocationMap = dynamic(
 
 interface HistoryResponse {
   pings: LocationPing[];
+  debug?: {
+    totalPings?: number;
+    dateRange?: {
+      from: string;
+      to: string;
+    };
+    childConsentGiven?: boolean;
+    linkStatus?: string;
+  };
 }
 
 type ChildrenResponse = { children: LinkedChild[] };
@@ -160,38 +169,98 @@ const ChildDetailPage = () => {
       {!isLoading && data && data.pings.length === 0 && (
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="pt-6">
-            <div className="space-y-3">
-              <h3 className="font-semibold text-amber-900">No location data available</h3>
-              <div className="space-y-2 text-sm text-amber-800">
-                <p>This could be because:</p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>
-                    <strong>Consent not given:</strong> The child needs to grant consent in their dashboard
-                    {!selectedChild?.consentGiven && (
-                      <span className="ml-1 text-amber-600">(Currently: Consent pending)</span>
-                    )}
-                  </li>
-                  <li>
-                    <strong>No location sent:</strong> The child's device/app hasn't sent any location updates yet
-                  </li>
-                  <li>
-                    <strong>Time range:</strong> No location data exists in the selected time range ({hours}h)
-                  </li>
-                  <li>
-                    <strong>Link status:</strong> Ensure the parent-child link is active and approved
-                  </li>
-                </ul>
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-semibold text-amber-900 mb-2">No location data available</h3>
+                
+                {/* Show backend debug info if available */}
+                {data.debug && (
+                  <div className="mb-4 p-4 bg-white rounded-lg border border-amber-200">
+                    <p className="font-medium text-amber-900 mb-3">Status Check:</p>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${data.debug.childConsentGiven ? "bg-emerald-500" : "bg-red-500"}`} />
+                        <span className="text-amber-800">
+                          Consent: <strong>{data.debug.childConsentGiven ? "Given ✓" : "Not Given ✗"}</strong>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${data.debug.linkStatus === "ACCEPTED" ? "bg-emerald-500" : "bg-red-500"}`} />
+                        <span className="text-amber-800">
+                          Link: <strong>{data.debug.linkStatus === "ACCEPTED" ? "Active ✓" : data.debug.linkStatus || "Unknown"}</strong>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        <span className="text-amber-800">
+                          Total Pings: <strong>{data.debug.totalPings ?? 0}</strong>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "bg-red-500"}`} />
+                        <span className="text-amber-800">
+                          Socket.IO: <strong>{connected ? "Connected ✓" : "Disconnected ✗"}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Show specific message based on debug info */}
+                {data.debug?.childConsentGiven && data.debug?.linkStatus === "ACCEPTED" && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="font-medium text-blue-900 mb-2">✓ Setup Complete</p>
+                    <p className="text-sm text-blue-800">
+                      Consent is given and the link is active. However, <strong>no location data has been received</strong> from the child's device yet.
+                    </p>
+                    <div className="mt-3 text-sm text-blue-700">
+                      <p className="font-medium mb-1">Next Steps:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Ensure the child's mobile app is installed and running</li>
+                        <li>Check that location permissions are granted on the device</li>
+                        <li>Verify the app is sending location updates to the backend</li>
+                        <li>Location data will appear here once the first ping is received</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {/* Show generic troubleshooting if no debug info */}
+                {!data.debug && (
+                  <div className="space-y-2 text-sm text-amber-800">
+                    <p>This could be because:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>
+                        <strong>Consent not given:</strong> The child needs to grant consent in their dashboard
+                        {!selectedChild?.consentGiven && (
+                          <span className="ml-1 text-amber-600">(Currently: Consent pending)</span>
+                        )}
+                      </li>
+                      <li>
+                        <strong>No location sent:</strong> The child's device/app hasn't sent any location updates yet
+                      </li>
+                      <li>
+                        <strong>Time range:</strong> No location data exists in the selected time range ({hours}h)
+                      </li>
+                      <li>
+                        <strong>Link status:</strong> Ensure the parent-child link is active and approved
+                      </li>
+                    </ul>
+                  </div>
+                )}
+
+                {/* Debug info section */}
                 <div className="mt-4 p-3 bg-white rounded-lg border border-amber-200">
-                  <p className="font-medium text-amber-900 mb-1">Debug Info:</p>
-                  <p className="text-xs text-amber-700 font-mono">
-                    API: {queryKey}
-                  </p>
-                  <p className="text-xs text-amber-700 font-mono">
-                    Response: {JSON.stringify(data)}
-                  </p>
-                  <p className="text-xs text-amber-700 font-mono">
-                    Socket.IO: {connected ? "Connected" : "Disconnected"}
-                  </p>
+                  <p className="font-medium text-amber-900 mb-2">Technical Details:</p>
+                  <div className="space-y-1 text-xs text-amber-700 font-mono">
+                    <p>API: {queryKey}</p>
+                    {data.debug?.dateRange && (
+                      <>
+                        <p>Date Range: {new Date(data.debug.dateRange.from).toLocaleString()} → {new Date(data.debug.dateRange.to).toLocaleString()}</p>
+                      </>
+                    )}
+                    <p>Response: {JSON.stringify(data, null, 2)}</p>
+                  </div>
                 </div>
               </div>
             </div>
