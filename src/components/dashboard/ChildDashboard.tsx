@@ -287,7 +287,7 @@ export const ChildDashboard = () => {
       {/* Location Tracking Status Card */}
       {user?.consentGiven && (
         <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
+          {/* <CardHeader>
             <div className="flex items-center gap-2">
               <MapPinIcon className="h-5 w-5 text-blue-600" />
               <div className="flex-1">
@@ -301,19 +301,19 @@ export const ChildDashboard = () => {
                 {isTracking ? "Active" : "Inactive"}
               </Badge>
             </div>
-          </CardHeader>
+          </CardHeader> */}
           <CardContent className="space-y-3">
-            {!isTracking && (
+            {/* {!isTracking && (
               <Button variant="primary" onClick={startLocationTracking} icon={<MapPinIcon className="h-4 w-4" />}>
                 Start Location Tracking
               </Button>
-            )}
+            )} */}
 
-            {isTracking && (
+            {/* {isTracking && (
               <Button variant="danger" onClick={stopLocationTracking} icon={<MapPinIcon className="h-4 w-4" />}>
                 Stop Tracking
               </Button>
-            )}
+            )} */}
 
             {locationError && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
