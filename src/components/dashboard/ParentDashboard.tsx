@@ -31,13 +31,53 @@ const isOnline = (timestamp?: string | null) => {
 
 export const ParentDashboard = () => {
   const { user } = useAuth();
-  const { data, isLoading, error } = useSWR<ChildrenResponse>("/children", swrFetcher);
+  const { data, isLoading, error } = useSWR<ChildrenResponse>("/children", swrFetcher, {
+    // Don't retry on 500 errors (server errors)
+    onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes("500") || errorMessage.includes("Internal Server Error")) return;
+      if (retryCount >= 3) return;
+      setTimeout(() => revalidate({ retryCount }), 5000);
+    },
+  });
 
   if (isLoading) {
     return <p className="text-sm text-slate-500">Loading your linked children…</p>;
   }
 
   if (error) {
+    // Handle 500 errors gracefully - might be because no children exist yet
+    const errorMessage = error.message || String(error);
+    if (errorMessage.includes("500") || errorMessage.includes("Internal Server Error")) {
+      return (
+        <div className="space-y-6">
+          <PageHeader
+            eyebrow="Dashboard"
+            title={`Welcome back, ${user?.name ?? "caregiver"}`}
+            subtitle="Live snapshots of every linked child with a privacy-first approach."
+            actions={
+              <Link
+                href="/links/manage"
+                className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white shadow-soft hover:-translate-y-0.5"
+              >
+                Manage links
+              </Link>
+            }
+          />
+          <EmptyState
+            title="No linked children"
+            description="Send a request from the Manage Links page once your child has created their SafeHome account."
+            icon="👪"
+            action={{
+              label: "Send link request",
+              onClick: () => {
+                window.location.href = "/links/manage";
+              },
+            }}
+          />
+        </div>
+      );
+    }
     return <p className="text-sm text-danger">Failed to load children: {error.message}</p>;
   }
 
@@ -72,7 +112,7 @@ export const ParentDashboard = () => {
         </CardHeader>
       </Card>
 
-      {data?.children.length ? (
+      {data?.children && data.children.length > 0 ? (
         <motion.div
           className="grid gap-5 md:grid-cols-2"
           initial="hidden"
@@ -84,7 +124,9 @@ export const ParentDashboard = () => {
             },
           }}
         >
-          {data.children.map((child) => (
+          {data.children
+            .filter((child) => child != null) // Filter out null/undefined children
+            .map((child) => (
             <motion.div
               key={child.id}
               variants={{
@@ -95,28 +137,30 @@ export const ParentDashboard = () => {
               <Card className="h-full">
                 <CardHeader className="flex items-center gap-4">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-lg font-semibold text-brand">
-                    {child.name
-                      .split(" ")
-                      .map((part) => part[0])
-                      .join("")
-                      .slice(0, 2)}
+                    {child?.name
+                      ? child.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)
+                      : "?"}
                   </div>
                   <div className="flex-1">
-                    <CardTitle>{child.name}</CardTitle>
-                    <CardDescription>{child.email}</CardDescription>
+                    <CardTitle>{child?.name || "Unknown"}</CardTitle>
+                    <CardDescription>{child?.email || "No email"}</CardDescription>
                   </div>
-                  <Badge variant={isOnline(child.lastLocation?.ts) ? "success" : "muted"}>
-                    {isOnline(child.lastLocation?.ts) ? "Online" : "Offline"}
+                  <Badge variant={isOnline(child?.lastLocation?.ts) ? "success" : "muted"}>
+                    {isOnline(child?.lastLocation?.ts) ? "Online" : "Offline"}
                   </Badge>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-2 text-sm text-slate-600">
                     <ClockIcon className="h-4 w-4" />
-                    {formatLastSeen(child.lastLocation?.ts)}
+                    {formatLastSeen(child?.lastLocation?.ts)}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-slate-600">
                     <MapPinIcon className="h-4 w-4" />
-                    {child.lastLocation ? (
+                    {child?.lastLocation ? (
                       <span>
                         Lat {child.lastLocation.lat.toFixed(3)}, Lng {child.lastLocation.lng.toFixed(3)}
                       </span>
@@ -125,14 +169,18 @@ export const ParentDashboard = () => {
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <Badge variant={child.consentGiven ? "brand" : "warning"}>
-                      {child.consentGiven ? "Consent active" : "Awaiting consent"}
+                    <Badge variant={child?.consentGiven ? "brand" : "warning"}>
+                      {child?.consentGiven ? "Consent active" : "Awaiting consent"}
                     </Badge>
                   </div>
                   <div className="flex justify-between">
-                    <Link href={`/dashboard/${child.id}`} className="text-sm font-semibold text-brand hover:text-brand-dark">
-                      View location →
-                    </Link>
+                    {child?.id ? (
+                      <Link href={`/dashboard/${child.id}`} className="text-sm font-semibold text-brand hover:text-brand-dark">
+                        View location →
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-slate-400">No ID available</span>
+                    )}
                     <Link href="/links/manage" className="text-sm text-slate-500 hover:text-brand">
                       Manage link
                     </Link>

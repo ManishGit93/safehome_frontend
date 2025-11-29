@@ -51,8 +51,16 @@ const ChildDetailPage = () => {
   const fromIso = useMemo(() => new Date(Date.now() - hours * 3600 * 1000).toISOString(), [hours]);
   const queryKey = childId ? `/children/${childId}/locations?from=${fromIso}` : null;
   const { data, isLoading, error, mutate } = useSWR<HistoryResponse>(queryKey, swrFetcher);
-  const { data: childrenData } = useSWR<ChildrenResponse>("/children", swrFetcher);
-  const selectedChild = childrenData?.children.find((child) => child.id === childId);
+  const { data: childrenData, error: childrenError } = useSWR<ChildrenResponse>("/children", swrFetcher, {
+    // Don't retry on 500 errors (server errors) - might be because no children exist
+    onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes("500") || errorMessage.includes("Internal Server Error")) return;
+      if (retryCount >= 3) return;
+      setTimeout(() => revalidate({ retryCount }), 5000);
+    },
+  });
+  const selectedChild = childrenData?.children?.find((child) => child?.id === childId) || null;
 
   const latest = data?.pings?.[0] ?? null;
 

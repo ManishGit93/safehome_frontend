@@ -36,7 +36,15 @@ const statusVariant = (status: string) => {
 const ManageLinksPage = () => {
   const { user } = useAuth();
   const [email, setEmail] = useState("");
-  const { data, mutate } = useSWR<ManageResponse>("/links", swrFetcher);
+  const { data, error, mutate } = useSWR<ManageResponse>("/links", swrFetcher, {
+    // Don't retry on 500 errors
+    onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes("500") || errorMessage.includes("Internal Server Error")) return;
+      if (retryCount >= 3) return;
+      setTimeout(() => revalidate({ retryCount }), 5000);
+    },
+  });
   const [message, setMessage] = useState<string | null>(null);
 
   const submit = async (event: React.FormEvent) => {
@@ -92,18 +100,27 @@ const ManageLinksPage = () => {
           <CardTitle>Current link statuses</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {data?.links.length ? (
-            data.links.map((link) => (
-              <div key={link._id} className="flex items-center justify-between rounded-2xl border border-slate-100 p-4">
-                <div>
-                  <p className="font-semibold text-slate-900">{link.childId.name}</p>
-                  <p className="text-sm text-slate-500">{link.childId.email}</p>
+          {error ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-medium text-amber-900">Unable to load links</p>
+              <p className="text-xs text-amber-700 mt-1">
+                {error.message || "An error occurred. This might be because you haven't sent any link requests yet."}
+              </p>
+            </div>
+          ) : data?.links && data.links.length > 0 ? (
+            data.links
+              .filter((link) => link != null && link.childId != null) // Filter out null links
+              .map((link) => (
+                <div key={link._id} className="flex items-center justify-between rounded-2xl border border-slate-100 p-4">
+                  <div>
+                    <p className="font-semibold text-slate-900">{link.childId?.name || "Unknown"}</p>
+                    <p className="text-sm text-slate-500">{link.childId?.email || "No email"}</p>
+                  </div>
+                  <Badge variant={statusVariant(link.status)}>{link.status}</Badge>
                 </div>
-                <Badge variant={statusVariant(link.status)}>{link.status}</Badge>
-              </div>
-            ))
+              ))
           ) : (
-            <p className="text-sm text-slate-500">You haven’t sent any requests yet.</p>
+            <p className="text-sm text-slate-500">You haven't sent any requests yet.</p>
           )}
         </CardContent>
       </Card>
