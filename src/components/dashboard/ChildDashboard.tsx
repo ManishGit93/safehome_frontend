@@ -330,7 +330,7 @@ export const ChildDashboard = () => {
               </div>
             )}
 
-            {lastSentLocation && !locationError && isTracking && (
+            {/* {lastSentLocation && !locationError && isTracking && (
               <div className="rounded-lg border border-green-200 bg-green-50 p-3">
                 <p className="text-sm font-medium text-green-900">✓ Location tracking active</p>
                 <p className="text-xs text-green-700 mt-1">
@@ -341,7 +341,7 @@ export const ChildDashboard = () => {
                   Location is sent to parents every 10 seconds automatically.
                 </p>
               </div>
-            )}
+            )} */}
 
             <div className="rounded-lg border border-blue-200 bg-white p-3">
               <p className="text-xs text-blue-800">
