@@ -343,12 +343,12 @@ export const ChildDashboard = () => {
               </div>
             )} */}
 
-            <div className="rounded-lg border border-blue-200 bg-white p-3">
+            {/* <div className="rounded-lg border border-blue-200 bg-white p-3">
               <p className="text-xs text-blue-800">
                 <strong>Note:</strong> Location is tracked continuously while this page is open. Make sure location permissions are enabled.
                 Parents will see your location update in real-time on their dashboard.
               </p>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
       )}
